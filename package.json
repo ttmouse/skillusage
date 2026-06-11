@@ -1,0 +1,38 @@
+{
+  "name": "skillusage",
+  "version": "0.1.0",
+  "description": "Skill / slash-command usage analytics for Claude Code and Codex, parsed from local on-disk data",
+  "type": "module",
+  "bin": {
+    "skillusage": "dist/index.mjs"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit",
+    "start": "node dist/index.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT",
+  "repository": "github:lovstudio/skillusage",
+  "keywords": [
+    "claude-code",
+    "codex",
+    "skills",
+    "slash-commands",
+    "analytics",
+    "cli"
+  ],
+  "devDependencies": {
+    "@types/node": "^25.9.3",
+    "cli-table3": "^0.6.5",
+    "gunshi": "^0.34.0",
+    "picocolors": "^1.1.1",
+    "tsdown": "^0.22.2",
+    "typescript": "^6.0.3"
+  }
+}
