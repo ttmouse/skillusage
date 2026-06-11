@@ -8,6 +8,8 @@ export interface SkillStats {
   /** Subset of `auto` that came from heuristic signals (SKILL.md reads). */
   inferredAuto: number;
   lastUsedAt: string | null;
+  /** Source ("claude" | "codex") -> count. */
+  sources: Record<string, number>;
   /** Local-timezone YYYY-MM-DD -> count. */
   daily: Record<string, number>;
   /** cwd -> count. */
@@ -32,17 +34,33 @@ export interface AggregateResult {
 
 export function aggregate(events: InvocationEvent[], opts: AggregateOptions = {}): AggregateResult {
   const cutoff = opts.days && opts.days > 0 ? Date.now() - opts.days * 86_400_000 : null;
-  const byKey = new Map<string, InvocationEvent>();
+  const kept = events.filter(event => {
+    if (event.sidechain && !opts.includeSubagents) return false;
+    if (event.inferred && opts.strict) return false;
+    if (cutoff !== null && Date.parse(event.timestamp) < cutoff) return false;
+    return true;
+  });
 
-  for (const event of events) {
-    if (event.sidechain && !opts.includeSubagents) continue;
-    if (event.inferred && opts.strict) continue;
-    if (cutoff !== null && Date.parse(event.timestamp) < cutoff) continue;
-    // Dedup: same skill in the same session within the same second is one invocation.
+  // Pass 1 — explicit signals. Dedup: same skill in the same session within
+  // the same second is one invocation.
+  const byKey = new Map<string, InvocationEvent>();
+  const explicitSessionSkills = new Set<string>();
+  for (const event of kept) {
+    if (event.inferred) continue;
     const key = `${event.sessionId}|${event.skill}|${event.timestamp.slice(0, 19)}`;
-    const existing = byKey.get(key);
-    // Prefer the non-inferred / manual record when duplicates collide.
-    if (!existing || (existing.inferred && !event.inferred)) byKey.set(key, event);
+    if (!byKey.has(key)) byKey.set(key, event);
+    explicitSessionSkills.add(`${event.sessionId}|${event.skill}`);
+  }
+
+  // Pass 2 — inferred signals (SKILL.md reads). The agent often reads a skill
+  // file in chunks, so an inferred signal counts at most once per session and
+  // is suppressed entirely when the same session already has an explicit one.
+  for (const event of kept) {
+    if (!event.inferred) continue;
+    const sessionKey = `${event.sessionId}|${event.skill}`;
+    if (explicitSessionSkills.has(sessionKey)) continue;
+    const key = `${sessionKey}|inferred`;
+    if (!byKey.has(key)) byKey.set(key, event);
   }
 
   const bySkill = new Map<string, SkillStats & { aliasSet: Set<string> }>();
@@ -56,6 +74,7 @@ export function aggregate(events: InvocationEvent[], opts: AggregateOptions = {}
         auto: 0,
         inferredAuto: 0,
         lastUsedAt: null,
+        sources: {},
         daily: {},
         projects: {},
         aliases: [],
@@ -70,6 +89,7 @@ export function aggregate(events: InvocationEvent[], opts: AggregateOptions = {}
       if (event.inferred) stats.inferredAuto += 1;
     }
     if (!stats.lastUsedAt || event.timestamp > stats.lastUsedAt) stats.lastUsedAt = event.timestamp;
+    stats.sources[event.source] = (stats.sources[event.source] ?? 0) + 1;
     const day = localDateKey(event.timestamp);
     stats.daily[day] = (stats.daily[day] ?? 0) + 1;
     if (event.cwd) stats.projects[event.cwd] = (stats.projects[event.cwd] ?? 0) + 1;
