@@ -5,6 +5,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { InvocationEvent, ScanResult } from '../types.js';
 import { normalizeSkillName } from '../normalize.js';
+import { cindyCodexSessionsDir } from './cindy-paths.js';
 
 const INJECTION_RE = /^<skill>\s*<name>([^<\n]+)<\/name>/;
 const SKILL_MD_PATH_RE = /\/skills\/([^/\s"'\\]+)\/SKILL\.md/;
@@ -42,6 +43,9 @@ export async function collectCodexEvents(codexDir?: string): Promise<ScanResult>
     ...(await listJsonl(join(root, 'sessions'))),
     ...(await listJsonl(join(root, 'archived_sessions'))),
   ];
+  // Cindy runs Codex with its own CODEX_HOME; those rollouts never land in
+  // ~/.codex. Missing directory no-ops via listJsonl.
+  files.push(...(await listJsonl(cindyCodexSessionsDir())));
 
   const events: InvocationEvent[] = [];
   const manualCandidates: Candidate[] = [];
