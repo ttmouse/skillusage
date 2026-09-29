@@ -1,7 +1,7 @@
 {
   "name": "skillusage",
   "version": "0.1.0",
-  "description": "Skill / slash-command usage analytics for Claude Code and Codex, parsed from local on-disk data",
+  "description": "Skill / slash-command usage analytics for local coding agents (Claude Code, Codex, Factory Droid, Pi, Cindy, OpenCode, DSH, Reasonix), parsed from local on-disk data",
   "type": "module",
   "bin": {
     "skillusage": "dist/index.mjs"

@@ -1,6 +1,14 @@
 export type InvocationMode = 'manual' | 'auto';
 
-export type InvocationSource = 'claude' | 'codex' | 'factory' | 'pi';
+export type InvocationSource =
+  | 'claude'
+  | 'codex'
+  | 'factory'
+  | 'pi'
+  | 'cindy'
+  | 'opencode'
+  | 'dsh'
+  | 'reasonix';
 
 export interface InvocationEvent {
   /** Normalized skill name (consecutive duplicate namespace segments collapsed). */
