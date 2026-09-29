@@ -2,12 +2,29 @@
 import { cli, define } from 'gunshi';
 import { collectClaudeEvents } from './adapters/claude.js';
 import { collectCodexEvents } from './adapters/codex.js';
+import { collectFactoryEvents } from './adapters/factory.js';
+import { collectPiEvents } from './adapters/pi.js';
 import { aggregate, type AggregateResult } from './aggregate.js';
 import { renderDaily } from './render/daily.js';
 import { renderTable } from './render/table.js';
-import type { InvocationEvent } from './types.js';
+import type { InvocationEvent, InvocationSource, ScanResult } from './types.js';
 
 const VERSION = '0.1.0';
+
+const ALL_SOURCES: readonly InvocationSource[] = ['claude', 'codex', 'factory', 'pi'];
+
+function parseSources(value: string | undefined): Set<InvocationSource> {
+  if (!value || value === 'all') return new Set(ALL_SOURCES);
+  const valid = value
+    .split(',')
+    .map(part => part.trim())
+    .filter((part): part is InvocationSource => (ALL_SOURCES as readonly string[]).includes(part));
+  return valid.length > 0 ? new Set(valid) : new Set(ALL_SOURCES);
+}
+
+function sourceLabel(selected: Set<InvocationSource>): string {
+  return selected.size === ALL_SOURCES.length ? 'all' : [...selected].join(',');
+}
 
 const sharedArgs = {
   json: {
@@ -23,7 +40,7 @@ const sharedArgs = {
     type: 'string',
     short: 's',
     default: 'all',
-    description: 'Data source: claude | codex | all',
+    description: 'Data sources, comma-separated: claude | codex | factory | pi | all',
   },
   strict: {
     type: 'boolean',
@@ -41,6 +58,14 @@ const sharedArgs = {
     type: 'string',
     description: 'Override the Codex data directory (default: ~/.codex)',
   },
+  'factory-dir': {
+    type: 'string',
+    description: 'Override the Factory Droid data directory (default: ~/.factory)',
+  },
+  'pi-dir': {
+    type: 'string',
+    description: 'Override the Pi data directory (default: ~/.pi)',
+  },
 } as const;
 
 interface SharedValues {
@@ -51,6 +76,8 @@ interface SharedValues {
   'include-subagents'?: boolean;
   'claude-dir'?: string;
   'codex-dir'?: string;
+  'factory-dir'?: string;
+  'pi-dir'?: string;
 }
 
 interface ScanOutcome {
@@ -61,15 +88,21 @@ interface ScanOutcome {
 }
 
 async function scanAndAggregate(values: SharedValues, days?: number): Promise<ScanOutcome> {
-  const source = values.source === 'claude' || values.source === 'codex' ? values.source : 'all';
+  const selected = parseSources(values.source);
   const started = performance.now();
+
+  const collectors: Array<[InvocationSource, (dir?: string) => Promise<ScanResult>, string | undefined]> = [
+    ['claude', collectClaudeEvents, values['claude-dir']],
+    ['codex', collectCodexEvents, values['codex-dir']],
+    ['factory', collectFactoryEvents, values['factory-dir']],
+    ['pi', collectPiEvents, values['pi-dir']],
+  ];
 
   const events: InvocationEvent[] = [];
   let filesScanned = 0;
-  const scans = await Promise.all([
-    source !== 'codex' ? collectClaudeEvents(values['claude-dir']) : null,
-    source !== 'claude' ? collectCodexEvents(values['codex-dir']) : null,
-  ]);
+  const scans = await Promise.all(
+    collectors.map(([key, collect, dir]) => (selected.has(key) ? collect(dir) : null)),
+  );
   for (const scan of scans) {
     if (!scan) continue;
     events.push(...scan.events);
@@ -81,7 +114,7 @@ async function scanAndAggregate(values: SharedValues, days?: number): Promise<Sc
     strict: values.strict,
     includeSubagents: values['include-subagents'],
   });
-  return { result, filesScanned, elapsedMs: performance.now() - started, source };
+  return { result, filesScanned, elapsedMs: performance.now() - started, source: sourceLabel(selected) };
 }
 
 function printJson(outcome: ScanOutcome, windowDays: number | null): void {
@@ -160,5 +193,5 @@ const isDaily = argv[0] === 'daily';
 await cli(isDaily ? argv.slice(1) : argv, isDaily ? dailyCommand : mainCommand, {
   name: 'skillusage',
   version: VERSION,
-  description: 'Skill / slash-command usage analytics for Claude Code and Codex',
+  description: 'Skill / slash-command usage analytics for Claude Code, Codex and more',
 });
