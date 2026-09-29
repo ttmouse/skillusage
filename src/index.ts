@@ -4,6 +4,10 @@ import { collectClaudeEvents } from './adapters/claude.js';
 import { collectCodexEvents } from './adapters/codex.js';
 import { collectFactoryEvents } from './adapters/factory.js';
 import { collectPiEvents } from './adapters/pi.js';
+import { collectCindyEvents } from './adapters/cindy.js';
+import { collectOpencodeEvents } from './adapters/opencode.js';
+import { collectDshEvents } from './adapters/dsh.js';
+import { collectReasonixEvents } from './adapters/reasonix.js';
 import { aggregate, type AggregateResult } from './aggregate.js';
 import { renderDaily } from './render/daily.js';
 import { renderTable } from './render/table.js';
@@ -11,7 +15,16 @@ import type { InvocationEvent, InvocationSource, ScanResult } from './types.js';
 
 const VERSION = '0.1.0';
 
-const ALL_SOURCES: readonly InvocationSource[] = ['claude', 'codex', 'factory', 'pi'];
+const ALL_SOURCES: readonly InvocationSource[] = [
+  'claude',
+  'codex',
+  'factory',
+  'pi',
+  'cindy',
+  'opencode',
+  'dsh',
+  'reasonix',
+];
 
 function parseSources(value: string | undefined): Set<InvocationSource> {
   if (!value || value === 'all') return new Set(ALL_SOURCES);
@@ -40,7 +53,7 @@ const sharedArgs = {
     type: 'string',
     short: 's',
     default: 'all',
-    description: 'Data sources, comma-separated: claude | codex | factory | pi | all',
+    description: 'Data sources, comma-separated: claude | codex | factory | pi | cindy | opencode | dsh | reasonix | all',
   },
   strict: {
     type: 'boolean',
@@ -66,6 +79,22 @@ const sharedArgs = {
     type: 'string',
     description: 'Override the Pi data directory (default: ~/.pi)',
   },
+  'cindy-dir': {
+    type: 'string',
+    description: 'Override the Cindy data directory or .db file (default: ~/Library/Application Support/Cindy)',
+  },
+  'opencode-dir': {
+    type: 'string',
+    description: 'Override the OpenCode data directory (default: ~/.local/share/opencode)',
+  },
+  'dsh-dir': {
+    type: 'string',
+    description: 'Override the DSH data directory (default: ~/.dsh)',
+  },
+  'reasonix-dir': {
+    type: 'string',
+    description: 'Override the Reasonix data directory (default: ~/Library/Application Support/reasonix)',
+  },
 } as const;
 
 interface SharedValues {
@@ -78,6 +107,10 @@ interface SharedValues {
   'codex-dir'?: string;
   'factory-dir'?: string;
   'pi-dir'?: string;
+  'cindy-dir'?: string;
+  'opencode-dir'?: string;
+  'dsh-dir'?: string;
+  'reasonix-dir'?: string;
 }
 
 interface ScanOutcome {
@@ -96,6 +129,10 @@ async function scanAndAggregate(values: SharedValues, days?: number): Promise<Sc
     ['codex', collectCodexEvents, values['codex-dir']],
     ['factory', collectFactoryEvents, values['factory-dir']],
     ['pi', collectPiEvents, values['pi-dir']],
+    ['cindy', collectCindyEvents, values['cindy-dir']],
+    ['opencode', collectOpencodeEvents, values['opencode-dir']],
+    ['dsh', collectDshEvents, values['dsh-dir']],
+    ['reasonix', collectReasonixEvents, values['reasonix-dir']],
   ];
 
   const events: InvocationEvent[] = [];
